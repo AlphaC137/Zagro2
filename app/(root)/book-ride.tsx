@@ -1,28 +1,63 @@
-import { useUser } from "@clerk/clerk-expo";
-import { StripeProvider } from "@stripe/stripe-react-native";
+import { useAuth } from "@clerk/clerk-expo";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import { Image, Text, View } from "react-native";
+import ReactNativeModal from "react-native-modal";
 
-import Payment from "@/components/Payment";
+import CustomButton from "@/components/CustomButton";
 import RideLayout from "@/components/RideLayout";
-import { icons } from "@/constants";
+import { icons, images } from "@/constants";
+import { fetchAPI } from "@/lib/fetch";
 import { formatTime } from "@/lib/utils";
 import { useDriverStore, useLocationStore } from "@/store";
 
 const BookRide = () => {
-  const { user } = useUser();
-  const { userAddress, destinationAddress } = useLocationStore();
+  const {
+    userAddress,
+    destinationAddress,
+    userLatitude,
+    userLongitude,
+    destinationLatitude,
+    destinationLongitude,
+  } = useLocationStore();
   const { drivers, selectedDriver } = useDriverStore();
+  const { userId } = useAuth();
+  const [success, setSuccess] = useState<boolean>(false);
 
   const driverDetails = drivers?.filter(
     (driver) => +driver.id === selectedDriver,
   )[0];
 
+  const handleConfirmRide = async () => {
+    try {
+      await fetchAPI("/(api)/ride/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          origin_address: userAddress,
+          destination_address: destinationAddress,
+          origin_latitude: userLatitude,
+          origin_longitude: userLongitude,
+          destination_latitude: destinationLatitude,
+          destination_longitude: destinationLongitude,
+          ride_time: driverDetails?.time!.toFixed(0),
+          fare_price: parseInt(driverDetails?.price!) * 100,
+          payment_status: "cash",
+          driver_id: driverDetails?.id,
+          user_id: userId,
+        }),
+      });
+      setSuccess(true);
+    } catch (error) {
+      console.error("Error creating ride:", error);
+      // Optionally, show an error message to the user
+    }
+  };
+
   return (
-    <StripeProvider
-      publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!}
-      merchantIdentifier="merchant.com.uber"
-      urlScheme="myapp"
-    >
+    <>
       <RideLayout title="Book Ride">
         <>
           <Text className="text-xl font-JakartaSemiBold mb-3">
@@ -92,16 +127,40 @@ const BookRide = () => {
             </View>
           </View>
 
-          <Payment
-            fullName={user?.fullName!}
-            email={user?.emailAddresses[0].emailAddress!}
-            amount={driverDetails?.price!}
-            driverId={driverDetails?.id}
-            rideTime={driverDetails?.time!}
+          <CustomButton
+            title="Confirm Ride"
+            className="my-10"
+            onPress={handleConfirmRide}
           />
         </>
       </RideLayout>
-    </StripeProvider>
+      <ReactNativeModal
+        isVisible={success}
+        onBackdropPress={() => setSuccess(false)}
+      >
+        <View className="flex flex-col items-center justify-center bg-white p-7 rounded-2xl">
+          <Image source={images.check} className="w-28 h-28 mt-5" />
+
+          <Text className="text-2xl text-center font-JakartaBold mt-5">
+            Booking placed successfully
+          </Text>
+
+          <Text className="text-md text-general-200 font-JakartaRegular text-center mt-3">
+            Thank you for your booking. Your reservation has been successfully
+            placed. Please proceed with your trip.
+          </Text>
+
+          <CustomButton
+            title="Back Home"
+            onPress={() => {
+              setSuccess(false);
+              router.push("/(root)/(tabs)/home");
+            }}
+            className="mt-5"
+          />
+        </View>
+      </ReactNativeModal>
+    </>
   );
 };
 
