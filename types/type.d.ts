@@ -1,5 +1,17 @@
 import { TextInputProps, TouchableOpacityProps } from "react-native";
 
+declare interface MarkerData {
+  id: string;
+  title: string;
+  latitude: number;
+  longitude: number;
+  rating?: number;
+  price?: number;
+  time?: number;
+  car_seats?: number;
+  profile_image_url?: string;
+}
+
 declare interface Ride {
   origin_address: string;
   destination_address: string;
