@@ -1,12 +1,13 @@
-import { useAuth } from "@clerk/clerk-expo";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Image, Text, View } from "react-native";
 import ReactNativeModal from "react-native-modal";
+import * as WebBrowser from "expo-web-browser";
 
 import CustomButton from "@/components/CustomButton";
 import RideLayout from "@/components/RideLayout";
 import { icons, images } from "@/constants";
+import { useAuth } from "@/lib/auth";
 import { fetchAPI } from "@/lib/fetch";
 import { formatTime } from "@/lib/utils";
 import { useDriverStore, useLocationStore } from "@/store";
@@ -21,8 +22,9 @@ const BookRide = () => {
     destinationLongitude,
   } = useLocationStore();
   const { drivers, selectedDriver } = useDriverStore();
-  const { userId } = useAuth();
+  const { user } = useAuth();
   const [success, setSuccess] = useState<boolean>(false);
+  const [createdRide, setCreatedRide] = useState<any>(null);
 
   const driverDetails = drivers?.filter(
     (driver) => +driver.id === selectedDriver,
@@ -30,29 +32,43 @@ const BookRide = () => {
 
   const handleConfirmRide = async () => {
     try {
-      await fetchAPI("/(api)/ride/create", {
+      const ride = await fetchAPI("/rides", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
-          origin_address: userAddress,
-          destination_address: destinationAddress,
-          origin_latitude: userLatitude,
-          origin_longitude: userLongitude,
-          destination_latitude: destinationLatitude,
-          destination_longitude: destinationLongitude,
-          ride_time: driverDetails?.time!.toFixed(0),
-          fare_price: parseInt(driverDetails?.price!) * 100,
-          payment_status: "cash",
-          driver_id: driverDetails?.id,
-          user_id: userId,
+          pickup_location: {
+            latitude: userLatitude,
+            longitude: userLongitude,
+            address: userAddress,
+          },
+          dropoff_location: {
+            latitude: destinationLatitude,
+            longitude: destinationLongitude,
+            address: destinationAddress,
+          },
         }),
       });
+      setCreatedRide(ride);
       setSuccess(true);
     } catch (error) {
       console.error("Error creating ride:", error);
       // Optionally, show an error message to the user
+    }
+  };
+
+  const handlePayment = async () => {
+    if (!createdRide) return;
+
+    try {
+      const response = await fetchAPI(`/payment/initialize/${createdRide.id}`, {
+        method: "POST",
+      });
+      if (response.authorization_url) {
+        await WebBrowser.openBrowserAsync(response.authorization_url);
+        setSuccess(false);
+        router.push("/(root)/(tabs)/home");
+      }
+    } catch (error) {
+      console.error("Error initializing payment:", error);
     }
   };
 
@@ -151,11 +167,8 @@ const BookRide = () => {
           </Text>
 
           <CustomButton
-            title="Back Home"
-            onPress={() => {
-              setSuccess(false);
-              router.push("/(root)/(tabs)/home");
-            }}
+            title="Proceed to Payment"
+            onPress={handlePayment}
             className="mt-5"
           />
         </View>

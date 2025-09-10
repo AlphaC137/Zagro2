@@ -1,5 +1,3 @@
-import { useUser } from "@clerk/clerk-expo";
-import { useAuth } from "@clerk/clerk-expo";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import { useState, useEffect } from "react";
@@ -17,20 +15,15 @@ import GoogleTextInput from "@/components/GoogleTextInput";
 import Map from "@/components/Map";
 import RideCard from "@/components/RideCard";
 import { icons, images } from "@/constants";
+import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/fetch";
 import { useLocationStore } from "@/store";
 import { Ride } from "@/types/type";
 
 const Home = () => {
-  const { user } = useUser();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   const { setUserLocation, setDestinationLocation } = useLocationStore();
-
-  const handleSignOut = () => {
-    signOut();
-    router.replace("/(auth)/sign-in");
-  };
 
   const [hasPermission, setHasPermission] = useState<boolean>(false);
 
@@ -38,7 +31,8 @@ const Home = () => {
     data: recentRides,
     loading,
     error,
-  } = useFetch<Ride[]>(`/(api)/ride/${user?.id}`);
+    isWakingUp,
+  } = useFetch<Ride[]>(`/rides`);
 
   useEffect(() => {
     (async () => {
@@ -86,7 +80,12 @@ const Home = () => {
         }}
         ListEmptyComponent={() => (
           <View className="flex flex-col items-center justify-center">
-            {!loading ? (
+            {isWakingUp && (
+              <Text className="text-sm text-gray-500">
+                Server is waking up... Please wait.
+              </Text>
+            )}
+            {!loading && !isWakingUp && (
               <>
                 <Image
                   source={images.noResult}
@@ -96,7 +95,8 @@ const Home = () => {
                 />
                 <Text className="text-sm">No recent rides found</Text>
               </>
-            ) : (
+            )}
+            {loading && !isWakingUp && (
               <ActivityIndicator size="small" color="#000" />
             )}
           </View>
@@ -105,10 +105,10 @@ const Home = () => {
           <>
             <View className="flex flex-row items-center justify-between my-5">
               <Text className="text-2xl font-JakartaExtraBold">
-                Welcome {user?.firstName}👋
+                Welcome {user?.name}👋
               </Text>
               <TouchableOpacity
-                onPress={handleSignOut}
+                onPress={signOut}
                 className="justify-center items-center w-10 h-10 rounded-full bg-white"
               >
                 <Image source={icons.out} className="w-4 h-4" />

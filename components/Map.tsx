@@ -4,7 +4,6 @@ import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 
 import { icons } from "@/constants";
-import { useFetch } from "@/lib/fetch";
 import {
   calculateDriverTimes,
   calculateRegion,
@@ -15,6 +14,15 @@ import { Driver, MarkerData } from "@/types/type";
 
 const directionsAPI = process.env.EXPO_PUBLIC_DIRECTIONS_API_KEY;
 
+// --- MOCK DATA ---
+// TODO: Replace this with a real API call to fetch drivers
+const mockDrivers: Driver[] = [
+  { id: "1", name: "Driver A", latitude: 34.0522, longitude: -118.2437 },
+  { id: "2", name: "Driver B", latitude: 34.055, longitude: -118.25 },
+  { id: "3", name: "Driver C", latitude: 34.05, longitude: -118.24 },
+];
+// --- END MOCK DATA ---
+
 const Map = () => {
   const {
     userLongitude,
@@ -24,7 +32,9 @@ const Map = () => {
   } = useLocationStore();
   const { selectedDriver, setDrivers } = useDriverStore();
 
-  const { data: drivers, loading, error } = useFetch<Driver[]>("/(api)/driver");
+  // Using mock data instead of fetching
+  const [drivers] = useState<Driver[]>(mockDrivers);
+  const [loading, setLoading] = useState(false); // Keep loading for initial setup
   const [markers, setMarkers] = useState<MarkerData[]>([]);
 
   useEffect(() => {
@@ -66,17 +76,10 @@ const Map = () => {
     destinationLongitude,
   });
 
-  if (loading || (!userLatitude && !userLongitude))
+  if (!userLatitude || !userLongitude)
     return (
       <View className="flex justify-between items-center w-full">
         <ActivityIndicator size="small" color="#000" />
-      </View>
-    );
-
-  if (error)
-    return (
-      <View className="flex justify-between items-center w-full">
-        <Text>Error: {error}</Text>
       </View>
     );
 

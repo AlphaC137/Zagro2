@@ -1,20 +1,21 @@
-import { useUser } from "@clerk/clerk-expo";
 import { ActivityIndicator, FlatList, Image, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import RideCard from "@/components/RideCard";
 import { images } from "@/constants";
+import { useAuth } from "@/lib/auth";
 import { useFetch } from "@/lib/fetch";
 import { Ride } from "@/types/type";
 
 const Rides = () => {
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const {
     data: recentRides,
     loading,
     error,
-  } = useFetch<Ride[]>(`/(api)/ride/${user?.id}`);
+    isWakingUp,
+  } = useFetch<Ride[]>(`/rides`);
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -29,7 +30,12 @@ const Rides = () => {
         }}
         ListEmptyComponent={() => (
           <View className="flex flex-col items-center justify-center">
-            {!loading ? (
+            {isWakingUp && (
+              <Text className="text-sm text-gray-500">
+                Server is waking up... Please wait.
+              </Text>
+            )}
+            {!loading && !isWakingUp && (
               <>
                 <Image
                   source={images.noResult}
@@ -39,7 +45,8 @@ const Rides = () => {
                 />
                 <Text className="text-sm">No recent rides found</Text>
               </>
-            ) : (
+            )}
+            {loading && !isWakingUp && (
               <ActivityIndicator size="small" color="#000" />
             )}
           </View>

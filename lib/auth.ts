@@ -1,72 +1,78 @@
-import * as Linking from "expo-linking";
-import * as SecureStore from "expo-secure-store";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { fetchAPI } from "./fetch";
+import { router } from "expo-router";
 
-import { fetchAPI } from "@/lib/fetch";
+interface AuthContextType {
+  token: string | null;
+  user: any; // Replace 'any' with a proper user type
+  signIn: (data: { token: string; user: any }) => Promise<void>;
+  signOut: () => void;
+  isLoading: boolean;
+}
 
-export const tokenCache = {
-  async getToken(key: string) {
-    try {
-      const item = await SecureStore.getItemAsync(key);
-      if (item) {
-        console.log(`${key} was used 🔐 \n`);
-      } else {
-        console.log("No values stored under key: " + key);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null); // Replace 'any' with a proper user type
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadToken = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem("token");
+        if (storedToken) {
+          setToken(storedToken);
+          // Assuming a /me endpoint to get user data from token
+          // const userData = await fetchAPI('/auth/me');
+          // setUser(userData);
+        }
+      } catch (e) {
+        console.error("Failed to load token from storage", e);
+      } finally {
+        setIsLoading(false);
       }
-      return item;
-    } catch (error) {
-      console.error("SecureStore get item error: ", error);
-      await SecureStore.deleteItemAsync(key);
-      return null;
-    }
-  },
-  async saveToken(key: string, value: string) {
-    try {
-      return SecureStore.setItemAsync(key, value);
-    } catch (err) {
-      return;
-    }
-  },
+    };
+
+    loadToken();
+  }, []);
+
+  const signIn = async (data: { token: string; user: any }) => {
+    setToken(data.token);
+    setUser(data.user);
+    await AsyncStorage.setItem("token", data.token);
+    router.replace("/(root)/(tabs)/home");
+  };
+
+  const signOut = async () => {
+    setToken(null);
+    setUser(null);
+    await AsyncStorage.removeItem("token");
+    router.replace("/(auth)/sign-in");
+  };
+
+  const value = {
+    token,
+    user,
+    signIn,
+    signOut,
+    isLoading,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const googleOAuth = async (startOAuthFlow: any) => {
-  try {
-    const { createdSessionId, setActive, signUp } = await startOAuthFlow({
-      redirectUrl: Linking.createURL("/(root)/(tabs)/home"),
-    });
-
-    if (createdSessionId) {
-      if (setActive) {
-        await setActive({ session: createdSessionId });
-
-        if (signUp.createdUserId) {
-          await fetchAPI("/(api)/user", {
-            method: "POST",
-            body: JSON.stringify({
-              name: `${signUp.firstName} ${signUp.lastName}`,
-              email: signUp.emailAddress,
-              clerkId: signUp.createdUserId,
-            }),
-          });
-        }
-
-        return {
-          success: true,
-          code: "success",
-          message: "You have successfully signed in with Google",
-        };
-      }
-    }
-
-    return {
-      success: false,
-      message: "An error occurred while signing in with Google",
-    };
-  } catch (err: any) {
-    console.error(err);
-    return {
-      success: false,
-      code: err.code,
-      message: err?.errors[0]?.longMessage,
-    };
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
+  return context;
 };
