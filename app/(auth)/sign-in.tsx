@@ -1,15 +1,15 @@
-import { useSignIn } from "@clerk/clerk-expo";
 import { Link, router } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, Image, ScrollView, Text, View } from "react-native";
 
 import CustomButton from "@/components/CustomButton";
 import InputField from "@/components/InputField";
-import OAuth from "@/components/OAuth";
 import { icons, images } from "@/constants";
+import { useAuth } from "@/lib/auth";
+import { fetchAPI } from "@/lib/fetch";
 
 const SignIn = () => {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const { signIn } = useAuth();
 
   const [form, setForm] = useState({
     email: "",
@@ -17,27 +17,26 @@ const SignIn = () => {
   });
 
   const onSignInPress = useCallback(async () => {
-    if (!isLoaded) return;
-
     try {
-      const signInAttempt = await signIn.create({
-        identifier: form.email,
-        password: form.password,
+      const response = await fetchAPI("/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
       });
 
-      if (signInAttempt.status === "complete") {
-        await setActive({ session: signInAttempt.createdSessionId });
+      if (response.token) {
+        await signIn(response);
         router.replace("/(root)/(tabs)/home");
       } else {
-        // See https://clerk.com/docs/custom-flows/error-handling for more info on error handling
-        console.log(JSON.stringify(signInAttempt, null, 2));
-        Alert.alert("Error", "Log in failed. Please try again.");
+        Alert.alert("Error", response.message || "Log in failed. Please try again.");
       }
     } catch (err: any) {
-      console.log(JSON.stringify(err, null, 2));
-      Alert.alert("Error", err.errors[0].longMessage);
+      console.error(err);
+      Alert.alert("Error", err.message || "An unexpected error occurred.");
     }
-  }, [isLoaded, form]);
+  }, [form, signIn]);
 
   return (
     <ScrollView className="flex-1 bg-white">
@@ -74,8 +73,6 @@ const SignIn = () => {
             onPress={onSignInPress}
             className="mt-6"
           />
-
-          <OAuth />
 
           <Link
             href="/sign-up"
